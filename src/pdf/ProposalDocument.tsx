@@ -19,7 +19,7 @@ interface ProposalDocumentProps {
 }
 
 export default function ProposalDocument({ state, results, company }: ProposalDocumentProps) {
-  const { meta, client } = state;
+  const { meta, client, propostas } = state;
   return (
     <Document
       title={`Proposta ${meta.number} - ${client.name || 'Cliente'}`}
@@ -36,8 +36,34 @@ export default function ProposalDocument({ state, results, company }: ProposalDo
         />
         <View style={styles.body}>
           <ClientBlock client={client} />
-          {state.includeFinanciamento && <FinanciamentoBlock state={state} results={results} />}
-          {state.includeConsorcio && <ConsorcioBlock state={state} results={results} />}
+          
+          {propostas.map((proposta, index) => {
+            if (!proposta.includeInPdf) return null;
+            const title = `Proposta ${String(index + 1).padStart(2, '0')}`;
+            const resultItem = results.propostas.find(r => r.id === proposta.id);
+            if (!resultItem) return null;
+
+            if (proposta.type === 'financiamento') {
+              return (
+                <FinanciamentoBlock 
+                  key={proposta.id} 
+                  title={title}
+                  fin={proposta.data} 
+                  result={resultItem.result as any} 
+                />
+              );
+            } else {
+              return (
+                <ConsorcioBlock 
+                  key={proposta.id} 
+                  title={title}
+                  cons={proposta.data} 
+                  result={resultItem.result as any} 
+                />
+              );
+            }
+          })}
+
           <ComparisonBlock results={results} />
           <NoticeBlock observations={client.observations} />
         </View>

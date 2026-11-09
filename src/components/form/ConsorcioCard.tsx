@@ -1,69 +1,108 @@
 import type { Dispatch } from 'react';
-import { PiggyBank } from 'lucide-react';
+import { PiggyBank, Copy, Trash2 } from 'lucide-react';
 import { Card, FieldGrid, Section } from '@/components/ui/Card';
 import Toggle from '@/components/ui/Toggle';
+import Button from '@/components/ui/Button';
 import { NumberField, TextField } from '@/components/form/fields';
 import type { ProposalAction } from '@/state/proposalReducer';
-import type { ProposalResults } from '@/state/deriveResults';
-import type { ProposalState } from '@/types/proposal';
+import type { PropostaResultItem } from '@/state/deriveResults';
 import type { ConsorcioField } from '@/calc/consorcio';
+import type { PropostaConsorcio } from '@/types/proposal';
 
 interface ConsorcioCardProps {
-  state: ProposalState;
-  results: ProposalResults;
+  proposta: PropostaConsorcio;
+  resultItem: PropostaResultItem;
+  title: string;
   dispatch: Dispatch<ProposalAction>;
   open: boolean;
   onToggle: () => void;
+  canRemove: boolean;
 }
 
-export default function ConsorcioCard({ state, results, dispatch, open, onToggle }: ConsorcioCardProps) {
-  const cons = state.consorcio;
-  const { result, errors } = results.consorcio;
+export default function ConsorcioCard({ 
+  proposta, 
+  resultItem, 
+  title, 
+  dispatch, 
+  open, 
+  onToggle, 
+  canRemove 
+}: ConsorcioCardProps) {
+  const cons = proposta.data;
+  const { result, errors } = resultItem as Extract<PropostaResultItem, { type: 'consorcio' }>;
   const ov = cons.overrides;
+  const id = proposta.id;
 
-  const patch = (values: Partial<typeof cons>) => dispatch({ type: 'consorcio', patch: values });
-  const override = (field: ConsorcioField, value: number | undefined) =>
-    dispatch({ type: 'consorcioOverride', field, value });
+  const patch = (values: Partial<typeof cons>) => dispatch({ type: 'consorcio', id, patch: values });
+  const calc = (field: ConsorcioField, label: string, value: number | undefined, extra: Partial<{ hint: string }> = {}) => (
+    <NumberField
+      id={`cons-${id}-${field}`}
+      label={label}
+      value={value ?? 0}
+      calculated
+      overridden={ov[field] !== undefined}
+      onRestore={() => dispatch({ type: 'consorcioOverride', id, field, value: undefined })}
+      onChange={(next) => dispatch({ type: 'consorcioOverride', id, field, value: next })}
+      hint={extra.hint}
+    />
+  );
 
   return (
     <Card
-      title="Consórcio"
-      subtitle={cons.administradora || 'Carta de crédito'}
+      title={title}
+      subtitle={cons.titulo || cons.administradora || 'Carta de crédito'}
       icon={<PiggyBank className="h-5 w-5" aria-hidden />}
       open={open}
       onToggle={onToggle}
       trailing={
-        <Toggle
-          id="cons-include"
-          label="No PDF"
-          checked={state.includeConsorcio}
-          disabled={state.includeConsorcio && !state.includeFinanciamento}
-          onChange={(value) => dispatch({ type: 'include', block: 'consorcio', value })}
-        />
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" icon={<Copy className="h-4 w-4" />} onClick={(e) => { e.stopPropagation(); dispatch({ type: 'duplicateProposta', id }); }} />
+            {canRemove && <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300" icon={<Trash2 className="h-4 w-4" />} onClick={(e) => { e.stopPropagation(); dispatch({ type: 'removeProposta', id }); }} />}
+          </div>
+          <Toggle
+            id={`cons-include-${id}`}
+            label="No PDF"
+            checked={proposta.includeInPdf}
+            onChange={(value) => dispatch({ type: 'updatePropostaInclude', id, value })}
+          />
+        </div>
       }
     >
       <Section title="Dados">
         <FieldGrid>
           <TextField
-            id="cons-administradora"
-            label="Nome da administradora"
+            id={`cons-titulo-${id}`}
+            label="Título da proposta"
+            value={cons.titulo}
+            placeholder="Ex.: Consórcio Porto Seguro - Carro"
+            onChange={(titulo) => patch({ titulo })}
+            className="sm:col-span-2"
+          />
+          <TextField
+            id={`cons-admin-${id}`}
+            label="Administradora"
             value={cons.administradora}
-            placeholder="Ex.: Administradora Exemplo"
+            placeholder="Ex.: Porto Seguro"
             onChange={(administradora) => patch({ administradora })}
             className="sm:col-span-2"
           />
-          <NumberField id="cons-credit" label="Crédito" required value={cons.credit} onChange={(credit) => patch({ credit })} />
-          <NumberField id="cons-adesao" label="Adesão" value={cons.adesao} onChange={(adesao) => patch({ adesao })} />
           <NumberField
-            id="cons-lance"
-            label="Lance (opcional)"
-            value={cons.lance}
-            onChange={(lance) => patch({ lance })}
+            id={`cons-credit-${id}`}
+            label="Crédito (carta)"
+            required
+            value={cons.credit}
+            onChange={(credit) => patch({ credit })}
           />
-          <NumberField id="cons-entrada" label="Entrada" value={cons.entrada} onChange={(entrada) => patch({ entrada })} />
           <NumberField
-            id="cons-term"
-            label="Prazo original (meses)"
+            id={`cons-adesao-${id}`}
+            label="Taxa de adesão"
+            value={cons.adesao}
+            onChange={(adesao) => patch({ adesao })}
+          />
+          <NumberField
+            id={`cons-term-${id}`}
+            label="Prazo total (meses)"
             kind="integer"
             required
             value={cons.term}
@@ -71,16 +110,32 @@ export default function ConsorcioCard({ state, results, dispatch, open, onToggle
             onChange={(term) => patch({ term: Math.round(term) })}
           />
           <NumberField
-            id="cons-embutidas"
-            label="Embutir parcelas"
+            id={`cons-embutidas-${id}`}
+            label="Parcelas embutidas no lance"
             kind="integer"
             value={cons.embutidas}
             error={errors.embutidas}
             onChange={(embutidas) => patch({ embutidas: Math.round(embutidas) })}
-            hint="Parcelas abatidas com o crédito."
           />
           <NumberField
-            id="cons-commitmentPct"
+            id={`cons-lance-${id}`}
+            label="Lance (recursos próprios)"
+            value={cons.lance}
+            onChange={(lance) => patch({ lance })}
+          />
+          <NumberField
+            id={`cons-entrada-${id}`}
+            label="Entrada (sinal/outros)"
+            value={cons.entrada}
+            onChange={(entrada) => patch({ entrada })}
+          />
+        </FieldGrid>
+      </Section>
+
+      <Section title="Parcelas e detalhes">
+        <FieldGrid>
+          <NumberField
+            id={`cons-commitmentPct-${id}`}
             label="Comprometimento de renda"
             kind="percent"
             value={cons.commitmentPct}
@@ -88,89 +143,32 @@ export default function ConsorcioCard({ state, results, dispatch, open, onToggle
             hint="Padrão de 30%, editável."
           />
         </FieldGrid>
-      </Section>
-
-      <Section title="Parcelas e detalhes">
-        <div className="space-y-4 rounded-xl border border-ink-700 bg-ink-950/60 p-4">
+        <div className="space-y-4">
           <Toggle
-            id="cons-linked"
-            label="Calc. Auto"
-            description="Desconto e parcela reduzida se atualizam entre si."
-            checked={cons.linked}
-            onChange={(linked) => patch({ linked })}
-          />
-          <Toggle
-            id="cons-cheiaAuto"
-            label="Parc. Cheia"
-            description="Estima a parcela cheia pelo crédito dividido pelo prazo."
+            id={`cons-cheiaAuto-${id}`}
+            label="Calcular parcela cheia automaticamente"
+            description="Se ativo, a parcela cheia será baseada no lance e crédito."
             checked={cons.cheiaAuto}
             onChange={(cheiaAuto) => patch({ cheiaAuto })}
           />
+          <Toggle
+            id={`cons-linked-${id}`}
+            label="Vincular desconto à reduzida"
+            description="Se ativo, alterar o % de desconto recalcula a parcela reduzida e vice-versa."
+            checked={cons.linked}
+            onChange={(linked) => patch({ linked })}
+          />
         </div>
-        <FieldGrid>
-          <NumberField
-            id="cons-cheia"
-            label="Parcela cheia"
-            required
-            value={result.cheia ?? 0}
-            error={errors.cheia}
-            calculated={cons.cheiaAuto || ov.cheia !== undefined}
-            overridden={ov.cheia !== undefined}
-            onRestore={() => override('cheia', undefined)}
-            onChange={(value) => override('cheia', value)}
-          />
-          <NumberField
-            id="cons-desconto"
-            label="Desconto"
-            kind="percent"
-            value={result.desconto}
-            calculated
-            overridden={ov.desconto !== undefined}
-            onRestore={() => override('desconto', undefined)}
-            onChange={(value) => override('desconto', value)}
-          />
-          <NumberField
-            id="cons-reduzida"
-            label="Parcela reduzida"
-            value={result.reduzida}
-            calculated
-            overridden={ov.reduzida !== undefined}
-            onRestore={() => override('reduzida', undefined)}
-            onChange={(value) => override('reduzida', value)}
-          />
-        </FieldGrid>
       </Section>
 
       <Section title="Resultados">
         <FieldGrid>
-          <NumberField
-            id="cons-taxas"
-            label="Valor pago em taxas"
-            value={result.taxas}
-            calculated
-            overridden={ov.taxas !== undefined}
-            onRestore={() => override('taxas', undefined)}
-            onChange={(value) => override('taxas', value)}
-          />
-          <NumberField
-            id="cons-totalPago"
-            label="Valor pago total"
-            value={result.totalPago}
-            calculated
-            overridden={ov.totalPago !== undefined}
-            onRestore={() => override('totalPago', undefined)}
-            onChange={(value) => override('totalPago', value)}
-            hint={result.parcelasPagas !== cons.term ? `${result.parcelasPagas} parcelas pagas pelo cliente.` : undefined}
-          />
-          <NumberField
-            id="cons-rendaMinima"
-            label="Renda mínima exigida"
-            value={result.rendaMinima}
-            calculated
-            overridden={ov.rendaMinima !== undefined}
-            onRestore={() => override('rendaMinima', undefined)}
-            onChange={(value) => override('rendaMinima', value)}
-          />
+          {calc('cheia', 'Parcela cheia', result.cheia, { hint: 'Base para desconto.' })}
+          {calc('reduzida', 'Parcela reduzida', result.reduzida, { hint: 'Valor pago após contemplação.' })}
+          {calc('desconto', 'Desconto (%)', result.desconto)}
+          {calc('rendaMinima', 'Renda mínima', result.rendaMinima, { hint: 'Com base na parcela cheia.' })}
+          {calc('taxas', 'Taxas pagas', result.taxas, { hint: 'Custo além do bem.' })}
+          {calc('totalPago', 'Total pago', result.totalPago)}
         </FieldGrid>
       </Section>
     </Card>

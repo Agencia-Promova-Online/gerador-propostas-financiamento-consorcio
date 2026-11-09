@@ -1,63 +1,88 @@
 import type { Dispatch } from 'react';
-import { Landmark } from 'lucide-react';
+import { Landmark, Copy, Trash2 } from 'lucide-react';
 import { Card, FieldGrid, Section } from '@/components/ui/Card';
 import SegmentedControl from '@/components/ui/SegmentedControl';
 import Toggle from '@/components/ui/Toggle';
+import Button from '@/components/ui/Button';
 import { NumberField, TextField } from '@/components/form/fields';
 import type { ProposalAction } from '@/state/proposalReducer';
-import type { ProposalResults } from '@/state/deriveResults';
-import type { ProposalState } from '@/types/proposal';
+import type { PropostaResultItem } from '@/state/deriveResults';
 import type { FinanciamentoField } from '@/calc/financiamento';
+import type { PropostaFinanciamento } from '@/types/proposal';
 
 interface FinanciamentoCardProps {
-  state: ProposalState;
-  results: ProposalResults;
+  proposta: PropostaFinanciamento;
+  resultItem: PropostaResultItem;
+  title: string;
   dispatch: Dispatch<ProposalAction>;
   open: boolean;
   onToggle: () => void;
+  canRemove: boolean;
 }
 
-export default function FinanciamentoCard({ state, results, dispatch, open, onToggle }: FinanciamentoCardProps) {
-  const fin = state.financiamento;
-  const { result, errors } = results.financiamento;
+export default function FinanciamentoCard({ 
+  proposta, 
+  resultItem, 
+  title, 
+  dispatch, 
+  open, 
+  onToggle, 
+  canRemove 
+}: FinanciamentoCardProps) {
+  const fin = proposta.data;
+  const { result, errors } = resultItem as Extract<PropostaResultItem, { type: 'financiamento' }>;
   const ov = fin.overrides;
+  const id = proposta.id;
 
-  const patch = (values: Partial<typeof fin>) => dispatch({ type: 'financiamento', patch: values });
+  const patch = (values: Partial<typeof fin>) => dispatch({ type: 'financiamento', id, patch: values });
   const calc = (field: FinanciamentoField, label: string, value: number, extra: Partial<{ hint: string }> = {}) => (
     <NumberField
-      id={`fin-${field}`}
+      id={`fin-${id}-${field}`}
       label={label}
       value={value}
       calculated
       overridden={ov[field] !== undefined}
-      onRestore={() => dispatch({ type: 'financiamentoOverride', field, value: undefined })}
-      onChange={(next) => dispatch({ type: 'financiamentoOverride', field, value: next })}
+      onRestore={() => dispatch({ type: 'financiamentoOverride', id, field, value: undefined })}
+      onChange={(next) => dispatch({ type: 'financiamentoOverride', id, field, value: next })}
       hint={extra.hint}
     />
   );
 
   return (
     <Card
-      title="Financiamento"
-      subtitle={fin.bank || 'Financiamento imobiliário'}
+      title={title}
+      subtitle={fin.titulo || fin.bank || 'Financiamento imobiliário'}
       icon={<Landmark className="h-5 w-5" aria-hidden />}
       open={open}
       onToggle={onToggle}
       trailing={
-        <Toggle
-          id="fin-include"
-          label="No PDF"
-          checked={state.includeFinanciamento}
-          disabled={state.includeFinanciamento && !state.includeConsorcio}
-          onChange={(value) => dispatch({ type: 'include', block: 'financiamento', value })}
-        />
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" icon={<Copy className="h-4 w-4" />} onClick={(e) => { e.stopPropagation(); dispatch({ type: 'duplicateProposta', id }); }} />
+            {canRemove && <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300" icon={<Trash2 className="h-4 w-4" />} onClick={(e) => { e.stopPropagation(); dispatch({ type: 'removeProposta', id }); }} />}
+          </div>
+          <Toggle
+            id={`fin-include-${id}`}
+            label="No PDF"
+            checked={proposta.includeInPdf}
+            onChange={(value) => dispatch({ type: 'updatePropostaInclude', id, value })}
+          />
+        </div>
       }
     >
       <Section title="Dados">
         <FieldGrid>
           <TextField
-            id="fin-bank"
-            label="Nome do banco"
+            id={`fin-titulo-${id}`}
+            label="Título da proposta"
+            value={fin.titulo}
+            placeholder="Ex.: Caixa Econômica - Imóvel X"
+            onChange={(titulo) => patch({ titulo })}
+            className="sm:col-span-2"
+          />
+          <TextField
+            id={`fin-bank-${id}`}
+            label="Nome do banco / Instituição"
             value={fin.bank}
             placeholder="Ex.: Caixa Econômica"
             onChange={(bank) => patch({ bank })}
@@ -76,7 +101,7 @@ export default function FinanciamentoCard({ state, results, dispatch, open, onTo
             />
           </div>
           <NumberField
-            id="fin-annualRatePct"
+            id={`fin-annualRatePct-${id}`}
             label="Juros (% ao ano)"
             kind="percent"
             value={fin.annualRatePct}
@@ -96,21 +121,21 @@ export default function FinanciamentoCard({ state, results, dispatch, open, onTo
             />
           </div>
           <NumberField
-            id="fin-credit"
+            id={`fin-credit-${id}`}
             label="Crédito (valor do bem)"
             required
             value={fin.credit}
             onChange={(credit) => patch({ credit })}
           />
           <NumberField
-            id="fin-down"
+            id={`fin-down-${id}`}
             label="Entrada"
             value={fin.down}
             error={errors.down}
             onChange={(down) => patch({ down })}
           />
           <NumberField
-            id="fin-term"
+            id={`fin-term-${id}`}
             label="Prazo (meses)"
             kind="integer"
             required
@@ -119,7 +144,7 @@ export default function FinanciamentoCard({ state, results, dispatch, open, onTo
             onChange={(term) => patch({ term: Math.round(term) })}
           />
           <NumberField
-            id="fin-cartorio"
+            id={`fin-cartorio-${id}`}
             label="Cartório"
             value={fin.cartorio}
             onChange={(cartorio) => patch({ cartorio })}
@@ -127,7 +152,7 @@ export default function FinanciamentoCard({ state, results, dispatch, open, onTo
           />
         </FieldGrid>
         <Toggle
-          id="fin-cartorioInTotal"
+          id={`fin-cartorioInTotal-${id}`}
           label="Somar cartório ao total pago"
           checked={fin.cartorioInTotal}
           onChange={(cartorioInTotal) => patch({ cartorioInTotal })}
@@ -137,7 +162,7 @@ export default function FinanciamentoCard({ state, results, dispatch, open, onTo
       <Section title="Parcelas e detalhes">
         <FieldGrid>
           <NumberField
-            id="fin-commitmentPct"
+            id={`fin-commitmentPct-${id}`}
             label="Comprometimento de renda"
             kind="percent"
             value={fin.commitmentPct}
@@ -146,7 +171,7 @@ export default function FinanciamentoCard({ state, results, dispatch, open, onTo
           />
         </FieldGrid>
         <Toggle
-          id="fin-showLast"
+          id={`fin-showLast-${id}`}
           label="Exibir última parcela"
           description="Mostra a última parcela no PDF."
           checked={fin.showLast}

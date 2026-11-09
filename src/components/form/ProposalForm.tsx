@@ -1,13 +1,14 @@
 import { useState, type Dispatch } from 'react';
-import { FilePlus2 } from 'lucide-react';
+import { FilePlus2, Plus } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import ProposalDetailsCard from '@/components/form/ProposalDetailsCard';
 import FinanciamentoCard from '@/components/form/FinanciamentoCard';
 import ConsorcioCard from '@/components/form/ConsorcioCard';
+import ComparisonSettingsCard from '@/components/form/ComparisonSettingsCard';
 import type { ProposalAction } from '@/state/proposalReducer';
 import type { ProposalResults } from '@/state/deriveResults';
-import type { ProposalState } from '@/types/proposal';
+import type { ProposalState, PropostaConsorcio, PropostaFinanciamento } from '@/types/proposal';
 
 interface ProposalFormProps {
   state: ProposalState;
@@ -16,17 +17,14 @@ interface ProposalFormProps {
   showErrors: boolean;
 }
 
-type CardKey = 'details' | 'financiamento' | 'consorcio';
-
 export default function ProposalForm({ state, results, dispatch, showErrors }: ProposalFormProps) {
-  const [openCards, setOpenCards] = useState<Record<CardKey, boolean>>({
+  const [openCards, setOpenCards] = useState<Record<string, boolean>>({
     details: true,
-    financiamento: true,
-    consorcio: true,
+    comparison: false,
   });
   const [confirmNew, setConfirmNew] = useState(false);
 
-  const toggleCard = (key: CardKey) => setOpenCards((prev) => ({ ...prev, [key]: !prev[key] }));
+  const toggleCard = (key: string) => setOpenCards((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const clientErrors = {
     name: showErrors && !state.client.name.trim() ? 'Informe o nome do cliente.' : undefined,
@@ -49,24 +47,77 @@ export default function ProposalForm({ state, results, dispatch, showErrors }: P
         state={state}
         results={results}
         dispatch={dispatch}
-        open={openCards.details}
+        open={openCards.details !== false}
         onToggle={() => toggleCard('details')}
         errors={clientErrors}
       />
-      <FinanciamentoCard
-        state={state}
-        results={results}
-        dispatch={dispatch}
-        open={openCards.financiamento}
-        onToggle={() => toggleCard('financiamento')}
-      />
-      <ConsorcioCard
-        state={state}
-        results={results}
-        dispatch={dispatch}
-        open={openCards.consorcio}
-        onToggle={() => toggleCard('consorcio')}
-      />
+
+      {state.propostas.map((proposta, index) => {
+        const title = `Proposta ${String(index + 1).padStart(2, '0')}`;
+        const resultItem = results.propostas.find((r) => r.id === proposta.id);
+        if (!resultItem) return null;
+
+        const isOpen = openCards[proposta.id] !== false; // default true
+        const onToggleItem = () => toggleCard(proposta.id);
+        const canRemove = state.propostas.length > 1;
+
+        if (proposta.type === 'financiamento') {
+          return (
+            <FinanciamentoCard
+              key={proposta.id}
+              proposta={proposta as PropostaFinanciamento}
+              resultItem={resultItem}
+              title={title}
+              dispatch={dispatch}
+              open={isOpen}
+              onToggle={onToggleItem}
+              canRemove={canRemove}
+            />
+          );
+        } else {
+          return (
+            <ConsorcioCard
+              key={proposta.id}
+              proposta={proposta as PropostaConsorcio}
+              resultItem={resultItem}
+              title={title}
+              dispatch={dispatch}
+              open={isOpen}
+              onToggle={onToggleItem}
+              canRemove={canRemove}
+            />
+          );
+        }
+      })}
+
+      <div className="flex items-center justify-center gap-4">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          icon={<Plus className="h-4 w-4" />} 
+          onClick={() => dispatch({ type: 'addProposta', propostaType: 'financiamento' })}
+        >
+          Add Financiamento
+        </Button>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          icon={<Plus className="h-4 w-4" />} 
+          onClick={() => dispatch({ type: 'addProposta', propostaType: 'consorcio' })}
+        >
+          Add Consórcio
+        </Button>
+      </div>
+
+      {state.propostas.length >= 2 && (
+        <ComparisonSettingsCard
+          comparison={state.comparison}
+          propostas={state.propostas}
+          dispatch={dispatch}
+          open={openCards.comparison === true} // default false
+          onToggle={() => toggleCard('comparison')}
+        />
+      )}
 
       <ConfirmDialog
         open={confirmNew}

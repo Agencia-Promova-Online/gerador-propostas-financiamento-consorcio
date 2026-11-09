@@ -2,7 +2,9 @@ import { Image, Text, View } from '@react-pdf/renderer';
 import { formatBRL, formatDateBR, formatPercent } from '@/lib/format';
 import type { ComparativoRow } from '@/calc/comparativo';
 import type { ProposalResults } from '@/state/deriveResults';
-import type { ClientData, CompanySettings, ProposalState } from '@/types/proposal';
+import type { ClientData, CompanySettings, ConsorcioForm, FinanciamentoForm } from '@/types/proposal';
+import type { FinanciamentoResult } from '@/calc/financiamento';
+import type { ConsorcioResult } from '@/calc/consorcio';
 import { styles } from '@/pdf/styles';
 
 const DASH = '—';
@@ -58,9 +60,7 @@ export function ClientBlock({ client }: { client: ClientData }) {
   );
 }
 
-export function FinanciamentoBlock({ state, results }: { state: ProposalState; results: ProposalResults }) {
-  const fin = state.financiamento;
-  const r = results.financiamento.result;
+export function FinanciamentoBlock({ title, fin, result: r }: { title: string; fin: FinanciamentoForm; result: FinanciamentoResult }) {
   const items: Item[] = [
     { label: 'Instituição', value: fin.bank },
     { label: 'Amortização', value: SYSTEM_LABEL[fin.system] },
@@ -78,9 +78,9 @@ export function FinanciamentoBlock({ state, results }: { state: ProposalState; r
 
   return (
     <View style={styles.block} wrap={false}>
-      <SectionHeading title="Financiamento imobiliário" />
+      <SectionHeading title={title} />
       <View style={styles.card}>
-        <Text style={styles.blockHeading}>{fin.bank || 'Financiamento bancário'}</Text>
+        <Text style={styles.blockHeading}>{fin.titulo || fin.bank || 'Financiamento bancário'}</Text>
         <Text style={styles.blockSubheading}>Simulação com amortização {fin.system}</Text>
         <KeyValueGrid items={items} />
         <View style={styles.highlightRow}>
@@ -92,9 +92,7 @@ export function FinanciamentoBlock({ state, results }: { state: ProposalState; r
   );
 }
 
-export function ConsorcioBlock({ state, results }: { state: ProposalState; results: ProposalResults }) {
-  const cons = state.consorcio;
-  const r = results.consorcio.result;
+export function ConsorcioBlock({ title, cons, result: r }: { title: string; cons: ConsorcioForm; result: ConsorcioResult }) {
   const items: Item[] = [
     { label: 'Administradora', value: cons.administradora },
     { label: 'Crédito', value: formatBRL(cons.credit) },
@@ -116,9 +114,9 @@ export function ConsorcioBlock({ state, results }: { state: ProposalState; resul
 
   return (
     <View style={styles.block} wrap={false}>
-      <SectionHeading title="Consórcio" />
+      <SectionHeading title={title} />
       <View style={styles.card}>
-        <Text style={styles.blockHeading}>{cons.administradora || 'Consórcio'}</Text>
+        <Text style={styles.blockHeading}>{cons.titulo || cons.administradora || 'Consórcio'}</Text>
         <Text style={styles.blockSubheading}>Simulação com parcela cheia e reduzida</Text>
         <KeyValueGrid items={items} />
         <View style={styles.highlightRow}>
@@ -137,10 +135,10 @@ function formatComparativoValue(row: ComparativoRow, value: number): string {
 export function ComparisonBlock({ results }: { results: ProposalResults }) {
   const comparison = results.comparison;
   if (!comparison) return null;
-  const { rows, economia } = comparison;
+  const { rows, economia, label1, label2 } = comparison;
 
   const economiaText = economia
-    ? `Escolhendo ${economia.best === 'financiamento' ? 'o financiamento' : 'o consórcio'}, a economia estimada em custo além do bem é de `
+    ? `Escolhendo ${economia.best === 'financiamento' ? label1 : label2}, a economia estimada em custo além do bem é de `
     : null;
 
   return (
@@ -149,8 +147,8 @@ export function ComparisonBlock({ results }: { results: ProposalResults }) {
       <View>
         <View style={styles.tableHead}>
           <Text style={[styles.tableHeadText, { flex: 1.6 }]}>Item</Text>
-          <Text style={[styles.tableHeadText, { flex: 1, textAlign: 'right' }]}>Financiamento</Text>
-          <Text style={[styles.tableHeadText, { flex: 1, textAlign: 'right' }]}>Consórcio</Text>
+          <Text style={[styles.tableHeadText, { flex: 1, textAlign: 'right' }]}>{label1}</Text>
+          <Text style={[styles.tableHeadText, { flex: 1, textAlign: 'right' }]}>{label2}</Text>
         </View>
         {rows.map((row, index) => {
           const last = index === rows.length - 1;
